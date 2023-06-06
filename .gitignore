@@ -1,3 +1,9 @@
 .vscode/
 CID/data
 CID/CrowPose
+
+
+CID/
+multi-parsing/
+runs/
+work_dirs/
