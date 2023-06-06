@@ -302,6 +302,7 @@ class IIA(nn.Module):
             ]
             flatten_center_labels = torch.cat(center_labels)
             
+<<<<<<< HEAD
             num_ins = (flatten_center_labels==0).sum()
 
             pred_multi_heatmap = F.interpolate(pred_multi_heatmap, size=(40,40), mode='bilinear',align_corners=True)
@@ -310,6 +311,16 @@ class IIA(nn.Module):
             loss_center = batch_inputs['center_loss_function'](flatten_center_preds, flatten_center_labels, avg_factor=num_ins + 1)
 
             feats = F.interpolate(features, size=(40,40), mode='bilinear',align_corners=True)
+=======
+            num_ins = (flatten_center_labels==0).sum() #中心点标签中值为0的像素点的数量
+
+            pred_multi_heatmap = F.interpolate(pred_multi_heatmap, size=(40,40), mode='bilinear',align_corners=True) #通过插值操作将预测的多尺度热图调整为大小为(40, 40)的尺寸
+            flatten_center_preds = pred_multi_heatmap.permute(0, 2, 3, 1).reshape(-1, 1) #将 pred_multi_heatmap 的维度重新排列，将通道维度移到最后
+            #将张量的第一维大小设为 -1，表示自动计算该维度的大小，以满足总元素数量不变且列数为 1 的要求
+            
+            loss_center = batch_inputs['center_loss_function'](flatten_center_preds, flatten_center_labels, avg_factor=num_ins + 1)
+
+            feats = F.interpolate(features, size=(40,40), mode='bilinear',align_corners=True) #通过插值操作将输入的特征图调整为大小为(40, 40)的尺寸
             instance_coords = batch_inputs['grid_coords']
 
             contrastive_loss = 0
@@ -318,6 +329,8 @@ class IIA(nn.Module):
             for i in range(len(instance_coords)):
                 center_y = np.array(instance_coords[i]) // 40
                 center_x = np.array(instance_coords[i]) % 40
+                center_y = np.array(instance_coords[i]) // 40 #将数组中的每个元素除以 40，得到的结果向下取整
+                center_x = np.array(instance_coords[i]) % 40 #将数组中的每个元素对 40 取模，得到的结果是元素除以 40 的余数
                 instance_coord = [center_y, center_x]
                 instance_param = self._sample_batch_inputs(feats[i], instance_coord)
                 instance_imgid = i * torch.ones(len(center_y[0]), dtype=torch.long).to(self.device)
@@ -369,9 +382,15 @@ class IIA(nn.Module):
 
             return instances
     
+<<<<<<< HEAD
     def _sample_batch_inputs(self, features, pos_ind): #pos_ind是一个二维数组，表示特征图中需要提取特征的位置
         batch_inputs = features[:, pos_ind[0][0], pos_ind[1][0]]
         return batch_inputs.permute(1, 0) #将维度从 (channels, batch_size) 转换为 (batch_size, channels)
+=======
+    def _sample_batch_inputs(self, features, pos_ind): #pos_ind是一个二维数组，表示特征图中需要提取特征的位置#pos_ind 是一个包含位置索引的列表，例如 pos_ind = [[y], [x]]，表示要采样的位置的 y 和 x 坐标
+        batch_inputs = features[:, pos_ind[0][0], pos_ind[1][0]]  #pos_ind[0][0] 表示 y 坐标索引，pos_ind[1][0] 表示 x 坐标索引
+        return batch_inputs.permute(1, 0) #将维度从 (channels, batch_size) 转换为 (batch_size, channels)#将维度从 (channels, batch_size) 转换为 (batch_size, channels),将特征向量的维度从 (C) 调整为 (C, 1)，其中 C 是通道数
+>>>>>>> SMP'mmdet
 
     def hierarchical_pool(self, heatmap):
         map_size = (heatmap.shape[1] + heatmap.shape[2]) / 2.0 #计算输入张量的高度和宽度维度的平均值
@@ -850,7 +869,11 @@ class CID_Parsing_basic(nn.Module):
         
         batch_inputs = {}
         
+<<<<<<< HEAD
         center_results  = multi_apply(   # (center_label_list, ins_label_list, ins_ind_label_list, grid_order_list)
+=======
+        center_results  = multi_apply(   # (center_label_list, ins_label_list, ins_ind_label_list, grid_order_list) #在多个输入上并行地应用一个函数，并将结果以元组形式返回
+>>>>>>> SMP'mmdet
             self.parsing_center_target_single,
             gt_inputs[0], 
             gt_inputs[1], 
