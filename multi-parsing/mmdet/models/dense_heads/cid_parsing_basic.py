@@ -294,7 +294,7 @@ class IIA(nn.Module):
         pred_multi_heatmap = _sigmoid(self.keypoint_center_conv(features)) #iia预测值：sigmoid函数放缩到0~1之间
 
         if self.training: #如果模型处于训练模式，则使用batch_inputs对象执行训练；否则，返回一个instances对象，该对象包含模型对输入的预测
-            # multi_heatmap: [1, H, W] heatmap, 每个关键点一张HW图
+            # multi_heatmap: [1, H, W] heatmap, 每个关键点一张 H W 图
             center_labels = [
                 torch.cat([center_labels_level_img.flatten()
                         for center_labels_level_img in center_labels_level])
@@ -302,7 +302,7 @@ class IIA(nn.Module):
             ]
             flatten_center_labels = torch.cat(center_labels)
             
-<<<<<<< HEAD
+
             num_ins = (flatten_center_labels==0).sum()
 
             pred_multi_heatmap = F.interpolate(pred_multi_heatmap, size=(40,40), mode='bilinear',align_corners=True)
@@ -311,7 +311,7 @@ class IIA(nn.Module):
             loss_center = batch_inputs['center_loss_function'](flatten_center_preds, flatten_center_labels, avg_factor=num_ins + 1)
 
             feats = F.interpolate(features, size=(40,40), mode='bilinear',align_corners=True)
-=======
+
             num_ins = (flatten_center_labels==0).sum() #中心点标签中值为0的像素点的数量
 
             pred_multi_heatmap = F.interpolate(pred_multi_heatmap, size=(40,40), mode='bilinear',align_corners=True) #通过插值操作将预测的多尺度热图调整为大小为(40, 40)的尺寸
@@ -327,8 +327,6 @@ class IIA(nn.Module):
             total_instances = 0
             instances = defaultdict(list)
             for i in range(len(instance_coords)):
-                center_y = np.array(instance_coords[i]) // 40
-                center_x = np.array(instance_coords[i]) % 40
                 center_y = np.array(instance_coords[i]) // 40 #将数组中的每个元素除以 40，得到的结果向下取整
                 center_x = np.array(instance_coords[i]) % 40 #将数组中的每个元素对 40 取模，得到的结果是元素除以 40 的余数
                 instance_coord = [center_y, center_x]
@@ -338,6 +336,8 @@ class IIA(nn.Module):
                 total_instances += len(center_y[0])
                 instances['instance_param'].append(instance_param)
                 instances['instance_imgid'].append(instance_imgid)
+                #instances['instance_coords'].append(instance_coords)
+                instances['instance_coords'].append(torch.tensor(instance_coords))
             
             for k, v in instances.items():
                 instances[k] = torch.cat(v, dim=0)
@@ -382,15 +382,15 @@ class IIA(nn.Module):
 
             return instances
     
-<<<<<<< HEAD
+
     def _sample_batch_inputs(self, features, pos_ind): #pos_ind是一个二维数组，表示特征图中需要提取特征的位置
         batch_inputs = features[:, pos_ind[0][0], pos_ind[1][0]]
         return batch_inputs.permute(1, 0) #将维度从 (channels, batch_size) 转换为 (batch_size, channels)
-=======
+
     def _sample_batch_inputs(self, features, pos_ind): #pos_ind是一个二维数组，表示特征图中需要提取特征的位置#pos_ind 是一个包含位置索引的列表，例如 pos_ind = [[y], [x]]，表示要采样的位置的 y 和 x 坐标
         batch_inputs = features[:, pos_ind[0][0], pos_ind[1][0]]  #pos_ind[0][0] 表示 y 坐标索引，pos_ind[1][0] 表示 x 坐标索引
         return batch_inputs.permute(1, 0) #将维度从 (channels, batch_size) 转换为 (batch_size, channels)#将维度从 (channels, batch_size) 转换为 (batch_size, channels),将特征向量的维度从 (C) 调整为 (C, 1)，其中 C 是通道数
->>>>>>> SMP'mmdet
+
 
     def hierarchical_pool(self, heatmap):
         map_size = (heatmap.shape[1] + heatmap.shape[2]) / 2.0 #计算输入张量的高度和宽度维度的平均值
@@ -868,12 +868,9 @@ class CID_Parsing_basic(nn.Module):
         # mixed_feats.shape: (N, 5*C_in, H, W)
         
         batch_inputs = {}
-        
-<<<<<<< HEAD
-        center_results  = multi_apply(   # (center_label_list, ins_label_list, ins_ind_label_list, grid_order_list)
-=======
+
         center_results  = multi_apply(   # (center_label_list, ins_label_list, ins_ind_label_list, grid_order_list) #在多个输入上并行地应用一个函数，并将结果以元组形式返回
->>>>>>> SMP'mmdet
+
             self.parsing_center_target_single,
             gt_inputs[0], 
             gt_inputs[1], 
@@ -881,7 +878,7 @@ class CID_Parsing_basic(nn.Module):
             gt_inputs[3],
             [self.enable_heatmaploss]*len(gt_inputs[1]),
             gt_inputs[6],
-            mask_feat_size = mask_feat_size)
+            mask_feat_size = mask_feat_size) #由于输入的7个参数长度都是1，就等效成串行了，最后输出应该是个（1*4*xxx）
 
         batch_inputs['center_heatmap'] = center_results[0]
         batch_inputs['grid_coords'] = center_results[3]
@@ -889,12 +886,12 @@ class CID_Parsing_basic(nn.Module):
         
 
         if self.training:
-            multi_heatmap_loss, contrastive_loss, instances = self.iia(mixed_feats, batch_inputs) #输入到IIA
+            loss_center, contrastive_loss, instances = self.iia(mixed_feats, batch_inputs) #输入到IIA
 
-            single_heatmap_loss = self.gfd(feats, instances) #输入到gfd
+            single_heatmap_loss = self.gfd(mixed_feats, instances) #输入到gfd
 
             losses = {}
-            losses.update({'multi_heatmap_loss': multi_heatmap_loss * self.multi_heatmap_loss_weight})
+            losses.update({'loss_center': loss_center * self.multi_heatmap_loss_weight})
             losses.update({'single_heatmap_loss': single_heatmap_loss * self.single_heatmap_loss_weight})
             losses.update({'contrastive_loss': contrastive_loss * self.contrastive_loss_weight}) #得到3个loss并返回
             return losses
@@ -1516,17 +1513,17 @@ class CID_Parsing_basic(nn.Module):
             loss_keypoints=loss_keypoints
             )
 
-    def parsing_category_target_single(self,
+    def parsing_category_target_single(self, # 用于生成单个实例的分割目标
                                gt_bboxes_raw,
                                gt_labels_raw,
                                gt_masks_raw,
-                               gt_parsing_raw,
+                               gt_parsing_raw, #原始的目标分割标签
                                enable_heatmaploss,
                                mask_feat_size,
-                               adapt_center):
+                               adapt_center): #adapt_center是否自适应中心点的标志
 
         device = gt_labels_raw[0].device
-        upsampled_size = (mask_feat_size[0] * 4, mask_feat_size[1] * 4)
+        upsampled_size = (mask_feat_size[0] * 4, mask_feat_size[1] * 4)# 进行上采样操作，将特征图的尺寸放大4倍(宽度和高度分别乘以4)
         # ins
         gt_parsings = []
         gt_labels_parsing = []
@@ -1538,14 +1535,14 @@ class CID_Parsing_basic(nn.Module):
         ins_ind_label_list = []
         grid_order_list = []
         
-        for i in range(self.cate_out_channels):
+        for i in range(self.cate_out_channels): # 用于遍历每个目标类别，并根据目标的分割标签生成相应的分割目标
             gt_parsing = gt_parsing_raw == i+1
             if gt_parsing.max() == 0:
                 continue
             else:
                 try:
                     for ins in range(gt_parsing.shape[0]):
-                        ys, xs = np.where(gt_parsing[ins] > 0)
+                        ys, xs = np.where(gt_parsing[ins] > 0) #实例的非零像素位置，即目标的边界框
                         if len(xs) == 0 or len(ys) == 0:
                             continue
                         else:
@@ -1554,15 +1551,15 @@ class CID_Parsing_basic(nn.Module):
                             gt_parsings.append(gt_parsing[ins])
                             gt_labels_parsing.append(i+1)
                 except Exception as e:
-                    print(e)
-                    import pdb;pdb.set_trace()
-        gt_bboxes_parsing = torch.tensor(np.array(gt_bboxes_parsing)).float().to(device)
+                    print(e) # 处理过程出现异常处理
+                    #import pdb;pdb.set_trace()
+        gt_bboxes_parsing = torch.tensor(np.array(gt_bboxes_parsing)).float().to(device) #转换为numpy数组后，转为浮点型张量
         gt_parsings = np.array(gt_parsings)
         gt_labels_parsing = torch.tensor(np.array(gt_labels_parsing)).to(device)
         
         if len(gt_bboxes_parsing) == 0:
             print("train a empty parsing image.")
-            for num_grid in self.seg_num_grids:
+            for num_grid in self.seg_num_grids: # 确保在没有有效的边界框时，仍能生成相应的空标签和列表
                 parsing_label = torch.tensor([], dtype=torch.int64, device=device)
                 ins_label = torch.zeros([0, mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8, device=device)
                 cate_label = torch.zeros([num_grid, num_grid], dtype=torch.int64, device=device)
@@ -1577,46 +1574,46 @@ class CID_Parsing_basic(nn.Module):
             return ins_label_list, cate_label_list, ins_ind_label_list, grid_order_list, parsing_label_list
 
         gt_areas = torch.sqrt((gt_bboxes_parsing[:, 2] - gt_bboxes_parsing[:, 0]) * (
-                gt_bboxes_parsing[:, 3] - gt_bboxes_parsing[:, 1]))
+                gt_bboxes_parsing[:, 3] - gt_bboxes_parsing[:, 1])) #边界框宽度：右上x减去左下x坐标，高度：右上y减去坐下y坐标；计算平方根是为了得到边界框的尺寸
         
         
         for (lower_bound, upper_bound), stride, num_grid \
                 in zip(self.scale_ranges, self.strides, self.seg_num_grids):
 
-            hit_indices = ((gt_areas >= lower_bound) & (gt_areas <= upper_bound)).nonzero().flatten()
-            num_ins = len(hit_indices)
+            hit_indices = ((gt_areas >= lower_bound) & (gt_areas <= upper_bound)).nonzero().flatten() #nonzero() 用于返回所有非零元素的索引,对于布尔张量，nonzero()方法将返回布尔值为True的元素的索引
+            num_ins = len(hit_indices) #满足条件的目标数量
             
             parsing_label = []
             ins_label = []
-            grid_order = []
+            grid_order = [] #网格顺序
             cate_label = torch.zeros([num_grid, num_grid], dtype=torch.int64, device=device)
             classify_label = torch.zeros([num_grid, num_grid], dtype=torch.int64, device=device)
             ins_ind_label = torch.zeros([num_grid ** 2], dtype=torch.bool, device=device)
 
-            if num_ins == 0:
+            if num_ins == 0: # 将相关标签初始化为空值
                 ins_label = torch.zeros([0, mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8, device=device)
                 parsing_label = torch.tensor([], dtype=torch.int64, device=device)
                 parsing_label_list.append(parsing_label)
                 ins_label_list.append(ins_label)
-                cate_label_list.append(cate_label+58)
+                cate_label_list.append(cate_label+58)    #+58？？？？
                 classify_label_list.append(classify_label)
                 ins_ind_label_list.append(ins_ind_label)
                 grid_order_list.append([])
                 continue
             
-            gt_bboxes = gt_bboxes_parsing[hit_indices]
-            gt_labels = gt_labels_parsing[hit_indices]
+            gt_bboxes = gt_bboxes_parsing[hit_indices] #表示被选中的边框信息
+            gt_labels = gt_labels_parsing[hit_indices] #表示被选中的实例类别标签
             #gt_masks = gt_masks_raw[hit_indices.cpu().numpy(), ...]
-            gt_masks = gt_parsings[hit_indices.cpu().numpy(), ...].astype('uint8')
+            gt_masks = gt_parsings[hit_indices.cpu().numpy(), ...].astype('uint8') # 表示被选中的掩码信息；将位于GPU设备上的张量hit_indices移动到CPU设备，并将其转换为NumPy数组;...表示使用所有维度的索引
             
-            half_ws = 0.5 * (gt_bboxes[:, 2] - gt_bboxes[:, 0]) * self.sigma
-            half_hs = 0.5 * (gt_bboxes[:, 3] - gt_bboxes[:, 1]) * self.sigma
+            half_ws = 0.5 * (gt_bboxes[:, 2] - gt_bboxes[:, 0]) * self.sigma #宽度一半
+            half_hs = 0.5 * (gt_bboxes[:, 3] - gt_bboxes[:, 1]) * self.sigma #高度一半
 
             # mass center
-            gt_masks_pt = torch.from_numpy(gt_masks).to(device=device)
+            gt_masks_pt = torch.from_numpy(gt_masks).to(device=device) #将 gt_masks 从数组转换为张量
             try:
                 center_ws, center_hs = center_of_mass(gt_masks_pt, adapt_center)
-                valid_mask_flags = gt_masks_pt.sum(dim=-1).sum(dim=-1) > 0
+                valid_mask_flags = gt_masks_pt.sum(dim=-1).sum(dim=-1) > 0 #通过对掩码张量在最后两个维度上进行求和，并判断求和结果是否大于0，可以得到一个布尔张量，其中True表示对应位置存在有效的掩膜（像素和大于0)
             except Exception as e:
                 print(e)
                 import pdb;pdb.set_trace()
@@ -1646,13 +1643,14 @@ class CID_Parsing_basic(nn.Module):
                 else:
                     # if cate_label[top:(down+1), left:(right+1)].sum() > 0:
                     #     import pdb;pdb.set_trace()
-                    cate_label[top:(down+1), left:(right+1)] = gt_label
-                if self.enable_cate_decouple == True:
+                    cate_label[top:(down+1), left:(right+1)] = gt_label #赋值给指定区域
+                if self.enable_cate_decouple == True: # 增加两次维度后再相乘，并进行插值操作；两次压缩维度
                     classify_label_temp = F.interpolate(torch.from_numpy(seg_mask).float().unsqueeze(0).unsqueeze(0).to(device=device)*gt_label, size=(num_grid, num_grid), mode='bilinear',align_corners=True).squeeze(0).squeeze(0).int().long()
                     classify_label[classify_label_temp>0] = gt_label
-                seg_mask_tmp = mmcv.imrescale(seg_mask, scale=1. / output_stride)
+                seg_mask_tmp = mmcv.imrescale(seg_mask, scale=1. / output_stride) #将输入图像缩小到原始的四分之一
                 if seg_mask_tmp.max()==0:
-                    seg_mask = (mmcv.imrescale(seg_mask.astype(float), scale=1. / output_stride, interpolation='area')>0).astype('uint8')
+                    seg_mask = (mmcv.imrescale(seg_mask.astype(float), scale=1. / output_stride, interpolation='area')>0).astype('uint8') #Area插值法通过计算原图像区域在缩放后图像中的覆盖面积来确定像素值；
+                    # 将缩放后的图像中像素值大于0的区域设为1，其余区域设为0（将布尔型数据转换成unit8）
                     seg_mask = torch.from_numpy(seg_mask).to(device=device)
                 else:
                     try:
@@ -1666,7 +1664,7 @@ class CID_Parsing_basic(nn.Module):
                         label = int(i * num_grid + j)
                         cur_ins_label = torch.zeros([mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8,
                                                     device=device)
-                        cur_ins_label[:seg_mask.shape[0], :seg_mask.shape[1]] = seg_mask
+                        cur_ins_label[:seg_mask.shape[0], :seg_mask.shape[1]] = seg_mask # cur_ins_label[:seg_mask.shape[0], :seg_mask.shape[1]]表示cur_ins_label的子区域，其大小与seg_mask的形状相匹配
                         ins_label.append(cur_ins_label)
                         if cur_ins_label.max() == 0:
                             import pdb;pdb.set_trace()
@@ -1676,9 +1674,9 @@ class CID_Parsing_basic(nn.Module):
             if len(ins_label) == 0:
                 ins_label = torch.zeros([0, mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8, device=device)
             else:
-                ins_label = torch.stack(ins_label, 0)
+                ins_label = torch.stack(ins_label, 0) #将ins_label列表中的所有张量按照0维度进行堆叠，形成一个新的张量，状为[num_instances, mask_feat_size[0], mask_feat_size[1]]，其中num_instances是实例的数量
 
-            cate_label = cate_label - 1
+            cate_label = cate_label - 1  #？？？？？？？？？？？？？？？？？
             cate_label[cate_label<0] = self.cate_out_channels
 
             ins_label_list.append(ins_label)
@@ -1700,12 +1698,12 @@ class CID_Parsing_basic(nn.Module):
                                img_metas = None,
                                mask_feat_size = None):
         
-        device = gt_labels_raw[0].device
-        if self.enable_ori_grid:
+        device = gt_labels_raw[0].device #获取gt_labels_raw列表中的第一个元素的设备信息,确保后续计算在同一设备上操作
+        if self.enable_ori_grid: #num_grid表示网格数量，是否启用原始网格
             num_grid = self.seg_num_grids[0]
         else:
             num_grid = self.seg_num_grids[-2]
-        upsampled_size = (mask_feat_size[0] * 4, mask_feat_size[1] * 4)
+        upsampled_size = (mask_feat_size[0] * 4, mask_feat_size[1] * 4) #size0为特征高度 size1为特征宽度，表示特征经过上采样的尺寸
         #import pdb;pdb.set_trace()
         #gt_masks_raw = F.interpolate(torch.from_numpy(gt_masks_raw).unsqueeze(0), size=upsampled_size, mode='bilinear').squeeze(0).numpy()
         # ins
@@ -1719,20 +1717,20 @@ class CID_Parsing_basic(nn.Module):
         grid_order_list = []
         
 
-        for ins in range(gt_masks_raw.shape[0]):
-            ys, xs = np.where(gt_masks_raw[ins] > 0)
-            if len(xs) == 0 or len(ys) == 0:
+        for ins in range(gt_masks_raw.shape[0]): #gt_masks_raw形状为(num_instances, height, width)，遍历第一个维度
+            ys, xs = np.where(gt_masks_raw[ins] > 0) #找到实例掩码中像素值大于0的位置，返回值ys和xs分别是对应位置的行索引和列索引
+            if len(xs) == 0 or len(ys) == 0: #判断实例是否存在像素值大于0的部分
                 continue
             else:
                 x1, x2, y1, y2 = xs.min(), xs.max(), ys.min(), ys.max()
-                gt_bboxes_parsing.append(np.array([x1,y1,x2,y2]))
+                gt_bboxes_parsing.append(np.array([x1,y1,x2,y2])) #计算出实例在水平和垂直方向上的最小和最大值，得到实例的边界框的左上角和右下角坐标
                 gt_masks.append(gt_masks_raw[ins])
         
-        if len(gt_bboxes_parsing) == 0:
-            ins_label = torch.zeros([0, mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8, device=device)
+        if len(gt_bboxes_parsing) == 0: #表示没有目标实例，返回结果为空张量
+            ins_label = torch.zeros([0, mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8, device=device) #0张量，实例分割标签
             ins_label_list.append(ins_label)
-            cate_label = torch.zeros([num_grid, num_grid], dtype=torch.int64, device=device)
-            cate_label_list.append(cate_label+1)
+            cate_label = torch.zeros([num_grid, num_grid], dtype=torch.int64, device=device) #零张量，类别标签
+            cate_label_list.append(cate_label+1)  #没有实例目标，只有背景类，在mmdet中重心为0，背景为1，所以+1
             return cate_label_list, ins_label_list
         
         gt_bboxes = np.array(gt_bboxes_parsing)
@@ -1744,15 +1742,20 @@ class CID_Parsing_basic(nn.Module):
         parsing_label = []
         ins_label = []
         grid_order = []
-        ins_ind_label = torch.zeros([num_grid ** 2], dtype=torch.bool, device=device)
+        ins_ind_label = torch.zeros([num_grid ** 2], dtype=torch.bool, device=device) #用于记录哪些网格包含目标实例
 
-        half_ws = 0.5 * (gt_bboxes[:, 2] - gt_bboxes[:, 0]) * self.sigma
-        half_hs = 0.5 * (gt_bboxes[:, 3] - gt_bboxes[:, 1]) * self.sigma
+        half_ws = 0.5 * (gt_bboxes[:, 2] - gt_bboxes[:, 0]) * self.sigma #计算目标边界框的宽度，根据宽度得到的高斯核的半宽
+        half_hs = 0.5 * (gt_bboxes[:, 3] - gt_bboxes[:, 1]) * self.sigma #计算目标边界框的高度，根据宽度得到的高斯核的半高；可以根据这些半宽和半高来确定高斯核的大小和形状
 
         # mass center
-        gt_masks_pt = torch.from_numpy(gt_masks).to(device=device)
-        center_ws, center_hs = center_of_mass(gt_masks_pt, self.enable_adapt_center)
-        valid_mask_flags = gt_masks_pt.sum(dim=-1).sum(dim=-1) > 0
+        gt_masks_pt = torch.from_numpy(gt_masks).to(device=device) #将gt_masks从NumPy数组转换为PyTorch张量，并将其发送到指定的设备上
+        center_ws, center_hs = center_of_mass(gt_masks_pt, self.enable_adapt_center) #计算目标实例掩码的重心坐标坐标
+        valid_mask_flags = gt_masks_pt.sum(dim=-1).sum(dim=-1) > 0 #用于标识哪些目标实例具有有效的掩码。
+        # gt_masks_pt.sum(dim=-1) 对目标实例的掩码沿着最后一个维度（通道维度）进行求和，得到每个像素点在所有通道上的累加值。
+        # 结果是一个形状为 [N, H, W] 的张量，其中 N 是目标实例的数量，H 和 W 是掩码的高度和宽度。
+        #.sum(dim=-1) 对上述结果再次沿着最后一个维度（宽度维度）进行求和，得到每个目标实例掩码的像素点总数。
+        # 结果是一个形状为 [N, H] 的张量。
+        # > 0 对上述结果进行比较运算， True 表示对应的目标实例具有有效的掩码（即像素点总数大于0），而 False 表示掩码无效（即像素点总数为0）
 
         output_stride = 4
 
@@ -1760,19 +1763,25 @@ class CID_Parsing_basic(nn.Module):
             if not valid_mask_flag:
                 continue
             
-            coord_w = int((center_w / upsampled_size[1]) // (1. / num_grid))
+            coord_w = int((center_w / upsampled_size[1]) // (1. / num_grid)) #将归一化的 center_w 除以上采样尺寸的宽度 upsampled_size[1]，得到相对于上采样尺寸的横向偏移比例
+            # 将横向偏移比例除以每个分割网格的宽度的倒数 1. / num_grid，得到在分割网格上的横向坐标的浮点数。
+            # 将浮点数转换为整数，取整后得到在分割网格上的横向坐标 coord_w
             coord_h = int((center_h / upsampled_size[0]) // (1. / num_grid))
+            # center_w和h是原图大小下的重心坐标，但在模型中，进入ResNET和fpn会让特征图相对于原图缩小，这时候需要想得到对应的坐标位置就需要用upsampled_size去放缩，
+            # 然后进入center分支之后，又被缩放到S×S，又需要用num_grid去放缩以得到在网格上的坐标
 
-            # left, top, right, down
+            # left, top, right, down分割网格上的边界框的上下左右坐标
             top_box = max(0, int(((center_h - half_h) / upsampled_size[0]) // (1. / num_grid)))
             down_box = min(num_grid - 1, int(((center_h + half_h) / upsampled_size[0]) // (1. / num_grid)))
             left_box = max(0, int(((center_w - half_w) / upsampled_size[1]) // (1. / num_grid)))
             right_box = min(num_grid - 1, int(((center_w + half_w) / upsampled_size[1]) // (1. / num_grid)))
 
-            top = max(top_box, coord_h-1)
+            top = max(top_box, coord_h-1) #取最大最小有问题
             down = min(down_box, coord_h+1)
             left = max(coord_w-1, left_box)
             right = min(right_box, coord_w+1)
+            # 由于重心只会落于一个网格，训练的话，一张图上响应的点太少了，模型不好收敛，因此它利用人的bbox缩小了一定尺度，
+            # 然后想生成更多的响应点，这里所以这里不是为了防止出界，而是为获得更多响应点
             
             if enable_heatmaploss:
                 cate_label = cate_label.float()
@@ -1783,36 +1792,36 @@ class CID_Parsing_basic(nn.Module):
                 cate_label[top:(down+1), left:(right+1)] = gt_label
 
             try:
-                seg_mask = mmcv.imrescale(seg_mask, scale=1. / output_stride)
-                seg_mask = torch.from_numpy(seg_mask).to(device=device)
-            except Exception as e :
+                seg_mask = mmcv.imrescale(seg_mask, scale=1. / output_stride)# seg_mask被通过mmcv.imrescale函数进行尺度缩放操作缩放为原来尺寸的1/output_stride倍
+                seg_mask = torch.from_numpy(seg_mask).to(device=device) # 转换为PyTorch张量，并使用to方法将其移动到指定的设备
+            except Exception as e : #异常处理语句
                 print(e)
-                import pdb; pdb.set_trace()
+                #import pdb; pdb.set_trace()
             for i in range(top, down+1):
                 for j in range(left, right+1):
-                    label = int(i * num_grid + j)
+                    label = int(i * num_grid + j) # 每次计算 label 都会根据当前的行索引 i 和列索引 j 更新，以确定当前处理的网格位置所对应的唯一标签值
 
                     cur_ins_label = torch.zeros([mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8,
                                                 device=device)
                     
-                    cur_ins_label[:seg_mask.shape[0], :seg_mask.shape[1]] = seg_mask
+                    cur_ins_label[:seg_mask.shape[0], :seg_mask.shape[1]] = seg_mask # 将缩放后的 seg_mask 填充到 cur_ins_label 的相应位置，确保其不超出 cur_ins_label 的形状
                     
                     ins_label.append(cur_ins_label)
                     ins_ind_label[label] = True
-                    grid_order.append(label)
-        if len(ins_label) == 0:
+                    grid_order.append(label) #以记录网格的顺序
+        if len(ins_label) == 0: # 判断是否存在实例标签
             ins_label = torch.zeros([0, mask_feat_size[0], mask_feat_size[1]], dtype=torch.uint8, device=device)
         else:
-            ins_label = torch.stack(ins_label, 0)
+            ins_label = torch.stack(ins_label, 0) # 将 ins_label 列表中的张量按行堆叠起来
         
         cate_label = cate_label - 1
-        cate_label[cate_label<0] = 1
+        cate_label[cate_label<0] = 1 #将cate_label张量中小于0的元素设置为1
 
-        ins_label_list.append(ins_label)
+        ins_label_list.append(ins_label) #实例分割标签
         #parsing_label_list.append(parsing_label)
-        ins_ind_label_list.append(ins_ind_label)
-        grid_order_list.append(grid_order)
-        cate_label_list.append(cate_label)
+        ins_ind_label_list.append(ins_ind_label) #实例索引标签
+        grid_order_list.append(grid_order) #网格顺序标签
+        cate_label_list.append(cate_label) #类别标签
         
         return cate_label_list, ins_label_list, ins_ind_label_list, grid_order_list
 
